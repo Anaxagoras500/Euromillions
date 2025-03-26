@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EuroMillions Probabilities</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .boule {
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 3px;
+            font-weight: bold;
+            color: white;
+            font-size: 18px;
+        }
+        
+        .boule-principale {
+            background-color: #5D5CDE;
+        }
+        
+        .boule-etoile {
+            background-color: #FFC107;
+        }
+        
+        .dark .boule-principale {
+            background-color: #6C6AEF;
+        }
+
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: #5D5CDE;
+            animation: spin 1s linear infinite;
+        }
+
+        .dark .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-left-color: #6C6AEF;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-3xl">
+        <h1 class="text-3xl font-bold text-center mb-4">EuroMillions Probabilities</h1>
+        <p class="text-center mb-8">Analyse des résultats pour optimiser vos chances</p>
+        
+        <div id="loading" class="bg-blue-50 dark:bg-blue-900 p-5 rounded-lg text-center mb-6 shadow-md">
+            <p class="font-semibold">Chargement des données...</p>
+            <p class="text-sm text-gray-600 dark:text-gray-400">Récupération des tirages historiques et des derniers résultats</p>
+            <div class="flex justify-center mt-4">
+                <div class="spinner"></div>
+            </div>
+        </div>
+        
+        <div id="errorMessage" class="bg-red-50 dark:bg-red-900 p-5 rounded-lg text-center mb-6 text-red-600 dark:text-red-300 shadow-md hidden"></div>
+        
+        <div class="grid grid-cols-1 gap-6">
+            <!-- Prochain tirage -->
+            <div id="nextDraw" class="bg-gray-100 dark:bg-gray-800 p-5 rounded-lg shadow-md">
+                <h2 class="text-xl font-semibold mb-4">Prochain Tirage</h2>
+                <div id="nextDrawInfo" class="text-gray-600 dark:text-gray-400">Chargement des informations...</div>
+            </div>
+            
+            <!-- Combinaisons recommandées -->
+            <div id="recommendations" class="bg-gray-100 dark:bg-gray-800 p-5 rounded-lg shadow-md">
+                <h2 class="text-xl font-semibold mb-4">Combinaisons Recommandées</h2>
+                <div class="flex items-center gap-4 mb-5">
+                    <label for="combinationCount" class="font-medium">Nombre de combinaisons:</label>
+                    <select id="combinationCount" class="bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md py-2 px-3">
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3" selected>3</option>
+                    </select>
+                    <button onclick="generateCombinations()" class="px-5 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold">Générer</button>
+                </div>
+                <div id="combinationsContainer" class="space-y-4"></div>
+            </div>
+            
+            <!-- Dernier tirage -->
+            <div class="bg-gray-100 dark:bg-gray-800 p-5 rounded-lg shadow-md">
+                <h2 class="text-xl font-semibold mb-4">Dernier Tirage</h2>
+                <div id="lastDraw" class="space-y-4"></div>
+            </div>
+            
+            <!-- Statistiques et tendances -->
+            <div class="bg-gray-100 dark:bg-gray-800 p-5 rounded-lg shadow-md">
+                <h2 class="text-xl font-semibold mb-4">Tendances Actuelles</h2>
+                
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div>
+                        <h3 class="font-medium mb-2">Numéros les plus fréquents</h3>
+                        <div id="numeros-frequents" class="flex flex-wrap gap-2 mb-4"></div>
+                        
+                        <h3 class="font-medium mb-2">Étoiles les plus fréquentes</h3>
+                        <div id="etoiles-frequentes" class="flex flex-wrap gap-2"></div>
+                    </div>
+                    
+                    <div>
+                        <h3 class="font-medium mb-2">Numéros les moins tirés</h3>
+                        <div id="numeros-rares" class="flex flex-wrap gap-2 mb-4"></div>
+                        
+                        <h3 class="font-medium mb-2">Étoiles les moins tirées</h3>
+                        <div id="etoiles-rares" class="flex flex-wrap gap-2"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const GITHUB_PDF_URL = 'https://raw.githubusercontent.com/neousaxis/Euromillions-generator/main/data/euromillions_2020-2025.pdf';
+        
+        // Variables globales
+        let allDraws = [];
+        let frequencyData = {
+            numbers: {},
+            stars: {}
+        };
+
+        // Vérifier si le mode sombre est préféré
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.classList.add('dark');
+        }
+        
+        // Écouter les changements de préférence de thème
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', event => {
+            if (event.matches) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        });
+
+        // Initialisation
+        document.addEventListener('DOMContentLoaded', async () => {
+            document.getElementById('loading').style.display = 'block';
+            
+            try {
+                // Actualisation automatique à chaque chargement de page
+                await refreshAllData();
+                
+                document.getElementById('loading').style.display = 'none';
+            } catch (error) {
+                console.error('Erreur lors du chargement des données:', error);
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('errorMessage').classList.remove('hidden');
+                document.getElementById('errorMessage').textContent = 
+                    `Erreur lors du chargement des données: ${error.message}. Veuillez réessayer plus tard.`;
+            }
+        });
+
+        // Fonction pour actualiser toutes les données
+        async function refreshAllData() {
+            // 1. Charger les données historiques depuis GitHub
+            const historicalDraws = await loadHistoricalDataFromGithub();
+            
+            // 2. Obtenir les derniers résultats
+            const recentDraws = await fetchRecentDraws();
+            
+            // 3. Fusionner les données (en évitant les doublons)
+            allDraws = mergeDrawData(historicalDraws, recentDraws);
+            
+            // 4. Analyser les données
+            analyzeData();
+            
+            // 5. Obtenir les informations sur le prochain tirage
+            await fetchNextDrawInfo();
+            
+            // 6. Afficher les tendances
+            displayTrends();
+            
+            // 7. Afficher le dernier tirage
+            displayLastDraw();
+            
+            // Note: Nous ne générons PAS automatiquement des combinaisons
+            // L'utilisateur doit cliquer sur le bouton "Générer"
+        }
+
+        // Fonction pour charger les données historiques depuis le PDF GitHub
+        async function loadHistoricalDataFromGithub() {
+            // Dans un environnement réel, nous utiliserions un script côté serveur pour traiter le PDF
+            // Pour cette démonstration, nous simulons la récupération de données
+            console.log("Tentative de chargement des données depuis:", GITHUB_PDF_URL);
+            
+            try {
+                // Note: Nous simulons ici, car JavaScript côté client ne peut pas directement lire un PDF
+                // Un service backend serait nécessaire pour cette fonctionnalité
+                return await simulatePdfDataLoading();
+            } catch (error) {
+                console.error("Erreur lors du chargement du PDF:", error);
+                throw new Error("Impossible de charger les données historiques");
+            }
+        }
+
+        // Simulation du chargement de données PDF (à remplacer par un vrai parser PDF sur le backend)
+        async function simulatePdfDataLoading() {
+            // Dans une implémentation réelle, cette fonction appellerait un API qui traiterait le PDF
+            console.log("Simulation du chargement des données PDF...");
+            
+            // Simule un délai de traitement
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            
+            // Retourne quelques données simulées pour la démonstration
+            // Format: [date, [numéros], [étoiles]]
+            return [
+                ["2020-01-03", [4, 13, 17, 35, 45], [1, 9]],
+                ["2020-01-07", [8, 14, 21, 34, 47], [3, 10]],
+                ["2020-01-10", [6, 17, 32, 38, 43], [2, 7]],
+                ["2020-01-14", [12, 16, 23, 29, 38], [4, 11]],
+                ["2020-01-17", [3, 13, 24, 30, 43], [3, 5]],
+                ["2020-01-21", [5, 18, 27, 36, 41], [2, 8]],
+                ["2020-01-24", [7, 19, 24, 27, 40], [1, 12]],
+                ["2020-01-28", [9, 11, 25, 36, 42], [6, 9]],
+                ["2020-01-31", [1, 8, 20, 37, 48], [2, 7]],
+                ["2020-02-04", [11, 16, 26, 31, 44], [4, 10]]
+                // Dans une implémentation réelle, il y aurait beaucoup plus de données
+            ];
+        }
+
+        // Fonction pour récupérer les derniers tirages
+        async function fetchRecentDraws() {
+            console.log("Récupération des tirages récents...");
+            
+            // Simulation d'une requête API
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // Données simulées des tirages récents (10 derniers tirages)
+            return [
+                ["2025-03-22", [3, 10, 23, 38, 50], [3, 9]],
+                ["2025-03-19", [5, 12, 21, 27, 41], [1, 10]],
+                ["2025-03-15", [7, 18, 24, 32, 44], [2, 8]],
+                ["2025-03-12", [4, 11, 19, 28, 36], [4, 11]],
+                ["2025-03-08", [9, 15, 26, 31, 47], [5, 12]],
+                ["2025-03-05", [2, 13, 29, 33, 40], [3, 7]],
+                ["2025-03-01", [8, 14, 22, 35, 42], [6, 9]],
+                ["2025-02-26", [6, 16, 25, 30, 46], [2, 10]],
+                ["2025-02-22", [1, 20, 27, 37, 49], [1, 11]],
+                ["2025-02-19", [11, 17, 28, 39, 43], [4, 8]]
+            ];
+        }
+
+        // Fonction pour fusionner les données en évitant les doublons
+        function mergeDrawData(historicalDraws, recentDraws) {
+            // Création d'un ensemble pour stocker les dates comme clés uniques
+            const drawMap = new Map();
+            
+            // Ajouter d'abord les données historiques
+            historicalDraws.forEach(draw => {
+                drawMap.set(draw[0], draw);
+            });
+            
+            // Ajouter ensuite les données récentes (écrasera les doublons)
+            recentDraws.forEach(draw => {
+                drawMap.set(draw[0], draw);
+            });
+            
+            // Convertir la map en tableau et trier par date (du plus récent au plus ancien)
+            return Array.from(drawMap.values())
+                .sort((a, b) => new Date(b[0]) - new Date(a[0]));
+        }
+
+        // Fonction pour analyser les données et calculer les fréquences
+        function analyzeData() {
+            console.log("Analyse des données...");
+            
+            // Réinitialiser les fréquences
+            frequencyData = {
+                numbers: {},
+                stars: {}
+            };
+            
+            // Initialiser toutes les fréquences possibles
+            for (let i = 1; i <= 50; i++) {
+                frequencyData.numbers[i] = 0;
+            }
+            for (let i = 1; i <= 12; i++) {
+                frequencyData.stars[i] = 0;
+            }
+            
+            // Compter les fréquences
+            allDraws.forEach(draw => {
+                const numbers = draw[1];
+                const stars = draw[2];
+                
+                numbers.forEach(num => {
+                    frequencyData.numbers[num]++;
+                });
+                
+                stars.forEach(star => {
+                    frequencyData.stars[star]++;
+                });
+            });
+        }
+
+        // Fonction pour afficher le dernier tirage
+        function displayLastDraw() {
+            const lastDrawDiv = document.getElementById('lastDraw');
+            lastDrawDiv.innerHTML = '';
+            
+            // S'assurer que nous avons au moins un tirage
+            if (allDraws.length === 0) {
+                lastDrawDiv.innerHTML = '<p class="text-center italic">Aucun tirage disponible.</p>';
+                return;
+            }
+            
+            // Récupérer le dernier tirage
+            const lastDraw = allDraws[0];
+            const date = new Date(lastDraw[0]).toLocaleDateString('fr-FR');
+            const numbers = lastDraw[1];
+            const stars = lastDraw[2];
+            
+            const drawItem = document.createElement('div');
+            drawItem.className = 'bg-white dark:bg-gray-700 p-3 rounded-lg';
+            
+            let numbersHTML = '';
+            numbers.forEach(num => {
+                numbersHTML += `<div class="boule boule-principale">${num}</div>`;
+            });
+            
+            let starsHTML = '';
+            stars.forEach(star => {
+                starsHTML += `<div class="boule boule-etoile">${star}</div>`;
+            });
+            
+            drawItem.innerHTML = `
+                <div class="font-medium mb-2">${date}</div>
+                <div class="flex flex-wrap items-center">
+                    ${numbersHTML}
+                    <span class="mx-2 font-bold">+</span>
+                    ${starsHTML}
+                </div>
+            `;
+            
+            lastDrawDiv.appendChild(drawItem);
+        }
+
+        // Fonction pour récupérer les informations sur le prochain tirage
+        async function fetchNextDrawInfo() {
+            console.log("Récupération des informations sur le prochain tirage...");
+            
+            // Simulation d'une requête API
+            await new Promise(resolve => setTimeout(resolve, 800));
+            
+            // Données simulées du prochain tirage
+            const nextDrawDate = new Date('2025-03-26').toLocaleDateString('fr-FR');
+            const jackpot = "135 000 000 €";
+            
+            const nextDrawDiv = document.getElementById('nextDrawInfo');
+            nextDrawDiv.innerHTML = `
+                <div class="bg-white dark:bg-gray-700 p-4 rounded-lg">
+                    <p class="mb-2"><span class="font-medium">Date:</span> ${nextDrawDate}</p>
+                    <p><span class="font-medium">Jackpot:</span> ${jackpot}</p>
+                </div>
+            `;
+        }
+
+        // Fonction pour générer des combinaisons basées sur les probabilités
+        function generateCombinations() {
+            console.log("Génération des combinaisons basées sur les probabilités...");
+            
+            const count = parseInt(document.getElementById('combinationCount').value);
+            const combinationsContainer = document.getElementById('combinationsContainer');
+            combinationsContainer.innerHTML = '';
+            
+            for (let i = 0; i < count; i++) {
+                const combination = generateProbabilisticCombination();
+                displayCombination(combination, i + 1, combinationsContainer);
+            }
+        }
+        
+        // Fonction pour générer une combinaison basée sur les probabilités statistiques
+        function generateProbabilisticCombination() {
+            // Calcul des poids/probabilités basés sur les fréquences relatives
+            const numberWeights = calculateWeights(frequencyData.numbers, allDraws.length);
+            const starWeights = calculateWeights(frequencyData.stars, allDraws.length);
+            
+            // Utilisation des probabilités pour sélectionner les numéros
+            const selectedNumbers = weightedRandomSelection(numberWeights, 5);
+            const selectedStars = weightedRandomSelection(starWeights, 2);
+            
+            // Trier les numéros et étoiles
+            selectedNumbers.sort((a, b) => a - b);
+            selectedStars.sort((a, b) => a - b);
+            
+            return {
+                numbers: selectedNumbers,
+                stars: selectedStars
+            };
+        }
+        
+        // Calcul des poids basés sur les fréquences
+        function calculateWeights(frequencyMap, totalDraws) {
+            const weights = {};
+            let totalFrequency = 0;
+            
+            // Méthode de pondération basée sur l'inverse de la fréquence
+            // (les numéros moins fréquents ont une probabilité légèrement plus élevée)
+            Object.keys(frequencyMap).forEach(key => {
+                const num = parseInt(key);
+                const frequency = frequencyMap[num];
+                
+                // Formule de pondération: fréquence relative inversée, avec lissage
+                weights[num] = 1 - (frequency / totalDraws) * 0.5; // 50% d'influence
+                totalFrequency += weights[num];
+            });
+            
+            // Normaliser les poids pour qu'ils forment une distribution de probabilité
+            Object.keys(weights).forEach(key => {
+                weights[key] = weights[key] / totalFrequency;
+            });
+            
+            return weights;
+        }
+        
+        // Sélection aléatoire pondérée
+        function weightedRandomSelection(weights, count) {
+            const selected = [];
+            const availableNumbers = Object.keys(weights).map(num => parseInt(num));
+            
+            while (selected.length < count && availableNumbers.length > 0) {
+                // Créer un tableau de probabilités cumulatives
+                let cumulativeWeights = [];
+                let totalWeight = 0;
+                
+                availableNumbers.forEach(num => {
+                    totalWeight += weights[num];
+                    cumulativeWeights.push({
+                        num: num,
+                        weight: totalWeight
+                    });
+                });
+                
+                // Sélectionner un nombre aléatoirement en fonction des poids
+                const random = Math.random() * totalWeight;
+                let selectedNum = availableNumbers[0];
+                
+                for (let i = 0; i < cumulativeWeights.length; i++) {
+                    if (random <= cumulativeWeights[i].weight) {
+                        selectedNum = cumulativeWeights[i].num;
+                        break;
+                    }
+                }
+                
+                // Ajouter le nombre sélectionné et le retirer des nombres disponibles
+                selected.push(selectedNum);
+                const index = availableNumbers.indexOf(selectedNum);
+                availableNumbers.splice(index, 1);
+            }
+            
+            return selected;
+        }
+        
+        // Afficher une combinaison
+        function displayCombination(combination, index, container) {
+            const combinationDiv = document.createElement('div');
+            combinationDiv.className = 'bg-white dark:bg-gray-700 p-4 rounded-lg';
+            
+            let numbersHTML = '';
+            combination.numbers.forEach(num => {
+                numbersHTML += `<div class="boule boule-principale">${num}</div>`;
+            });
+            
+            let starsHTML = '';
+            combination.stars.forEach(star => {
+                starsHTML += `<div class="boule boule-etoile">${star}</div>`;
+            });
+            
+            combinationDiv.innerHTML = `
+                <h3 class="font-semibold mb-3">Combinaison ${index}</h3>
+                <div class="flex flex-wrap items-center">
+                    ${numbersHTML}
+                    <span class="mx-2 font-bold">+</span>
+                    ${starsHTML}
+                </div>
+            `;
+            
+            container.appendChild(combinationDiv);
+        }
+        
+        // Obtenir les numéros les plus fréquents
+        function getMostFrequentNumbers(frequencyObj, count) {
+            return Object.entries(frequencyObj)
+                .map(([num, freq]) => ({ num: parseInt(num), freq }))
+                .sort((a, b) => b.freq - a.freq)
+                .slice(0, count)
+                .map(item => item.num);
+        }
+        
+        // Obtenir les numéros les moins fréquents
+        function getLeastFrequentNumbers(frequencyObj, count) {
+            return Object.entries(frequencyObj)
+                .map(([num, freq]) => ({ num: parseInt(num), freq }))
+                .sort((a, b) => a.freq - b.freq)
+                .slice(0, count)
+                .map(item => item.num);
+        }
+        
+        // Afficher les tendances actuelles
+        function displayTrends() {
+            // Les numéros les plus fréquents
+            const mostFrequentNumbers = getMostFrequentNumbers(frequencyData.numbers, 5);
+            const mostFrequentStars = getMostFrequentNumbers(frequencyData.stars, 3);
+            
+            // Les numéros les moins fréquents
+            const leastFrequentNumbers = getLeastFrequentNumbers(frequencyData.numbers, 5);
+            const leastFrequentStars = getLeastFrequentNumbers(frequencyData.stars, 3);
+            
+            // Afficher les numéros les plus fréquents
+            const numerosFrequentsDiv = document.getElementById('numeros-frequents');
+            numerosFrequentsDiv.innerHTML = '';
+            mostFrequentNumbers.forEach(num => {
+                const boule = document.createElement('div');
+                boule.className = 'boule boule-principale';
+                boule.textContent = num;
+                numerosFrequentsDiv.appendChild(boule);
+            });
+            
+            // Afficher les étoiles les plus fréquentes
+            const etoilesFrequentesDiv = document.getElementById('etoiles-frequentes');
+            etoilesFrequentesDiv.innerHTML = '';
+            mostFrequentStars.forEach(num => {
+                const boule = document.createElement('div');
+                boule.className = 'boule boule-etoile';
+                boule.textContent = num;
+                etoilesFrequentesDiv.appendChild(boule);
+            });
+            
+            // Afficher les numéros les moins fréquents
+            const numerosRaresDiv = document.getElementById('numeros-rares');
+            numerosRaresDiv.innerHTML = '';
+            leastFrequentNumbers.forEach(num => {
+                const boule = document.createElement('div');
+                boule.className = 'boule boule-principale';
+                boule.textContent = num;
+                numerosRaresDiv.appendChild(boule);
+            });
+            
+            // Afficher les étoiles les moins fréquentes
+            const etoilesRaresDiv = document.getElementById('etoiles-rares');
+            etoilesRaresDiv.innerHTML = '';
+            leastFrequentStars.forEach(num => {
+                const boule = document.createElement('div');
+                boule.className = 'boule boule-etoile';
+                boule.textContent = num;
+                etoilesRaresDiv.appendChild(boule);
+            });
+        }
+    </script>
+</body>
+</html>
