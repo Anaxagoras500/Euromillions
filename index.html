@@ -239,7 +239,7 @@
             
             // Données simulées des tirages récents (10 derniers tirages)
             return [
-                ["2025-03-25", [1, 9, 17, 29, 43], [2, 6]], // Mise à jour du dernier tirage
+                ["2025-03-25", [1, 3, 18, 33, 36], [2, 6]], // Mise à jour du dernier tirage
                 ["2025-03-22", [3, 10, 23, 38, 50], [3, 9]],
                 ["2025-03-19", [5, 12, 21, 27, 41], [1, 10]],
                 ["2025-03-15", [7, 18, 24, 32, 44], [2, 8]],
@@ -355,7 +355,7 @@
             await new Promise(resolve => setTimeout(resolve, 800));
             
             // Données simulées du prochain tirage
-            const nextDrawDate = new Date('2025-03-29').toLocaleDateString('fr-FR'); // Mise à jour de la date du prochain tirage
+            const nextDrawDate = new Date('2025-03-28').toLocaleDateString('fr-FR'); // Mise à jour de la date du prochain tirage
             const jackpot = "135 000 000 €";
             
             const nextDrawDiv = document.getElementById('nextDrawInfo');
@@ -381,10 +381,4 @@
             }
         }
         
-        // Fonction pour générer une combinaison basée sur les probabilités statistiques
-        function generateProbabilisticCombination() {
-            // Calcul des poids/probabilités basés sur les fréquences relatives
-            const numberWeights = calculateWeights(frequencyData.numbers, allDraws.length);
-            const starWeights = calculateWeights(frequencyData.stars, allDraws.length);
-            
-           
+        // Fonction pour générer une combinaison basée sur les probabil
