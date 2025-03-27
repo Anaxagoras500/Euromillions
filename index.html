@@ -239,6 +239,7 @@
             
             // Données simulées des tirages récents (10 derniers tirages)
             return [
+                ["2025-03-25", [1, 9, 17, 29, 43], [2, 6]], // Mise à jour du dernier tirage
                 ["2025-03-22", [3, 10, 23, 38, 50], [3, 9]],
                 ["2025-03-19", [5, 12, 21, 27, 41], [1, 10]],
                 ["2025-03-15", [7, 18, 24, 32, 44], [2, 8]],
@@ -247,8 +248,7 @@
                 ["2025-03-05", [2, 13, 29, 33, 40], [3, 7]],
                 ["2025-03-01", [8, 14, 22, 35, 42], [6, 9]],
                 ["2025-02-26", [6, 16, 25, 30, 46], [2, 10]],
-                ["2025-02-22", [1, 20, 27, 37, 49], [1, 11]],
-                ["2025-02-19", [11, 17, 28, 39, 43], [4, 8]]
+                ["2025-02-22", [1, 20, 27, 37, 49], [1, 11]]
             ];
         }
 
@@ -355,7 +355,7 @@
             await new Promise(resolve => setTimeout(resolve, 800));
             
             // Données simulées du prochain tirage
-            const nextDrawDate = new Date('2025-03-29').toLocaleDateString('fr-FR');
+            const nextDrawDate = new Date('2025-03-29').toLocaleDateString('fr-FR'); // Mise à jour de la date du prochain tirage
             const jackpot = "135 000 000 €";
             
             const nextDrawDiv = document.getElementById('nextDrawInfo');
@@ -387,4 +387,4 @@
             const numberWeights = calculateWeights(frequencyData.numbers, allDraws.length);
             const starWeights = calculateWeights(frequencyData.stars, allDraws.length);
             
-            // Utilisation des probabilités pour sélectionner les
+           
